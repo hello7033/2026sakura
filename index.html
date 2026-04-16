@@ -121,15 +121,20 @@
                     <input v-model="config.title" @change="updateConfig" class="editable-input text-[12px] tracking-[0.4em] font-bold text-soft-pink uppercase" placeholder="點擊編輯標題">
                     <input v-model="config.subtitle" @change="updateConfig" class="editable-input text-4xl font-light text-slate-700" placeholder="Spring 2026">
                     
+                    <!-- 🌧️ 天氣資訊與降雨機率 -->
                     <div v-if="weather" class="flex flex-col gap-1.5 text-[12px] text-slate-400 font-bold mt-2">
                         <div class="flex items-center gap-2">
                             <i class="fa-solid fa-cloud-sun text-pink-200"></i>
                             <span>TOKYO: {{ weather.temp }}°C ({{ weather.desc }})</span>
                         </div>
+                        <div v-if="weather.rainChance !== undefined" class="flex items-center gap-2">
+                            <i class="fa-solid fa-umbrella text-blue-300"></i>
+                            <span>{{ t('降雨機率') }}: {{ weather.rainChance }}%</span>
+                        </div>
                     </div>
                 </div>
 
-                <!-- 📸 封面圖區域：支援點擊上傳、自動壓縮 -->
+                <!-- 📸 封面圖區域 -->
                 <div class="flex flex-col items-center gap-3 shrink-0">
                     <div @click="triggerFileUpload" class="header-image-container group">
                         <img v-if="config.coverUrl" :src="config.coverUrl" alt="Cover">
@@ -217,21 +222,7 @@
             </div>
         </main>
 
-        <!-- 各種彈窗彈窗 -->
-        <!-- 天數標籤編輯 -->
-        <div v-if="dayEditing" class="fixed inset-0 z-[120] flex items-center justify-center p-6">
-            <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" @click="dayEditing = null"></div>
-            <div class="relative bg-white w-full max-w-xs rounded-[2.5rem] p-8 shadow-2xl space-y-6">
-                <p class="text-[12px] font-bold text-slate-400 uppercase tracking-widest text-center">修改天數名稱</p>
-                <input v-model="dayEditValue" @keyup.enter="saveDayLabel" class="w-full border-b-2 border-pink-100 py-4 text-center text-lg font-bold focus:outline-none">
-                <div class="flex gap-3">
-                    <button @click="dayEditing = null" class="flex-1 py-4 text-[11px] font-bold text-slate-400 uppercase">取消</button>
-                    <button @click="saveDayLabel" class="flex-1 py-4 bg-slate-800 text-white rounded-2xl text-[11px] font-bold uppercase shadow-lg">儲存</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- 行程編輯 -->
+        <!-- 行程編輯彈窗 -->
         <div v-if="showModal" class="fixed inset-0 z-[100] flex items-center justify-center p-6">
             <div class="absolute inset-0 bg-slate-900/20 backdrop-blur-sm" @click="showModal = false"></div>
             <div class="relative bg-white w-full max-w-md rounded-[3rem] p-10 shadow-2xl space-y-6">
@@ -262,6 +253,19 @@
                     class="w-full py-5 bg-slate-800 text-white rounded-2xl text-[12px] font-bold uppercase disabled:opacity-30 mt-6 shadow-xl active:scale-95 transition-all">
                     {{ t('Confirm') }}
                 </button>
+            </div>
+        </div>
+
+        <!-- 天數標籤編輯彈窗 -->
+        <div v-if="dayEditing" class="fixed inset-0 z-[120] flex items-center justify-center p-6">
+            <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" @click="dayEditing = null"></div>
+            <div class="relative bg-white w-full max-w-xs rounded-[2.5rem] p-8 shadow-2xl space-y-6">
+                <p class="text-[12px] font-bold text-slate-400 uppercase tracking-widest text-center">修改天數名稱</p>
+                <input v-model="dayEditValue" @keyup.enter="saveDayLabel" class="w-full border-b-2 border-pink-100 py-4 text-center text-lg font-bold focus:outline-none">
+                <div class="flex gap-3">
+                    <button @click="dayEditing = null" class="flex-1 py-4 text-[11px] font-bold text-slate-400 uppercase">取消</button>
+                    <button @click="saveDayLabel" class="flex-1 py-4 bg-slate-800 text-white rounded-2xl text-[11px] font-bold uppercase shadow-lg">儲存</button>
+                </div>
             </div>
         </div>
     </div>
@@ -344,7 +348,8 @@ createApp({
             '網址或關鍵字': { en: 'URL or keyword' },
             '想記下的東西...': { en: 'Anything to note...' },
             'Confirm': { en: 'Confirm' },
-            '查看地圖': { en: 'View Map' }
+            '查看地圖': { en: 'View Map' },
+            '降雨機率': { en: 'Rain Chance' }
         };
 
         const t = (text) => {
@@ -356,7 +361,6 @@ createApp({
         const currentDayLabel = computed(() => config.value.days.find(d => d.id === currentDayId.value)?.label || '');
         const currentEvents = computed(() => events.value.filter(e => e.dayId === currentDayId.value).sort((a, b) => (a.time || '').localeCompare(b.time || '')));
 
-        // 🖼️ 圖片上傳與壓縮
         const triggerFileUpload = () => imageInput.value.click();
         const onImageSelected = (e) => {
             const file = e.target.files[0];
@@ -366,7 +370,7 @@ createApp({
                 const img = new Image();
                 img.onload = () => {
                     const canvas = document.createElement('canvas');
-                    const MAX_WIDTH = 400; // 壓縮至寬度 400px，足以應付封面小圖
+                    const MAX_WIDTH = 500; 
                     let width = img.width;
                     let height = img.height;
                     if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
@@ -374,7 +378,7 @@ createApp({
                     canvas.height = height;
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
-                    config.value.coverUrl = canvas.toDataURL('image/jpeg', 0.7); // 壓縮品質 0.7
+                    config.value.coverUrl = canvas.toDataURL('image/jpeg', 0.8);
                     updateConfig();
                 };
                 img.src = event.target.result;
@@ -433,11 +437,17 @@ createApp({
             window.open(url.startsWith('http') ? url : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(url)}`, '_blank');
         };
 
+        // 🌡️ 更新天氣抓取，包含降雨機率
         const fetchWeather = async () => {
             try {
-                const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=35.6895&longitude=139.6917&current_weather=true&timezone=Asia%2FTokyo');
+                // Open-Meteo API: 加上 daily=precipitation_probability_max 來獲取今日最高降雨機率
+                const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=35.6895&longitude=139.6917&current_weather=true&daily=precipitation_probability_max&timezone=Asia%2FTokyo');
                 const data = await res.json();
-                weather.value = { temp: Math.round(data.current_weather.temperature), desc: data.current_weather.weathercode === 0 ? 'Sunny' : 'Cloudy' };
+                weather.value = { 
+                    temp: Math.round(data.current_weather.temperature), 
+                    desc: data.current_weather.weathercode === 0 ? 'Sunny' : 'Cloudy',
+                    rainChance: data.daily?.precipitation_probability_max?.[0] || 0
+                };
             } catch (e) { console.error(e); }
         };
 
