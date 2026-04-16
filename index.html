@@ -41,6 +41,20 @@
         input, textarea { font-family: inherit; background: transparent; }
         .editable-input { border: none; padding: 0; width: 100%; color: inherit; font-size: inherit; font-weight: inherit; font-style: inherit; font-family: inherit; }
         .editable-input:focus { outline: none; background: rgba(242, 186, 197, 0.1); border-radius: 4px; }
+        
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* 地圖按鈕樣式 */
+        .map-btn {
+            background: linear-gradient(135deg, #fdfcfb 0%, #e2d1c3 100%);
+            border: 1px solid rgba(0,0,0,0.05);
+            transition: all 0.3s ease;
+        }
+        .map-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
     </style>
 </head>
 <body class="pb-12">
@@ -105,6 +119,7 @@
         </header>
 
         <main class="px-6 -mt-6 space-y-6">
+            <!-- 同步狀態區 -->
             <section class="glass-panel p-4 rounded-[1.5rem] shadow-sm flex items-center justify-between">
                 <div class="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                     <span class="sync-dot" :class="synced ? 'on' : 'off'"></span>
@@ -118,6 +133,7 @@
                 </div>
             </section>
 
+            <!-- 匯率轉換區 -->
             <section class="glass-panel p-6 rounded-[2rem] shadow-lg">
                 <div class="grid grid-cols-3 gap-3">
                     <div v-for="key in ['jpy', 'twd', 'aud']" :key="key">
@@ -128,7 +144,7 @@
                 </div>
             </section>
 
-            <!-- 天數切換與編輯 -->
+            <!-- 天數切換與編輯功能 -->
             <div class="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
                 <div class="flex bg-white/50 backdrop-blur-sm rounded-full shadow-sm p-1.5 gap-1 shrink-0">
                     <div v-for="(day, index) in config.days" :key="day.id" class="relative">
@@ -138,7 +154,6 @@
                         </button>
                     </div>
                 </div>
-                <!-- 新增/刪除天數按鈕 -->
                 <div class="flex gap-1 shrink-0">
                     <button @click="addDay" class="w-8 h-8 rounded-full bg-white/50 text-slate-400 flex items-center justify-center text-[10px] hover:bg-white hover:text-soft-pink transition-colors shadow-sm">
                         <i class="fa-solid fa-plus"></i>
@@ -149,7 +164,7 @@
                 </div>
             </div>
 
-            <!-- 行程清單 -->
+            <!-- 當前行程清單 -->
             <div class="space-y-4">
                 <div v-if="currentEvents.length === 0" class="text-center py-10 text-slate-300 text-[10px] uppercase tracking-widest">
                     {{ t('No plans for today') }}
@@ -160,15 +175,24 @@
                         <button @click.stop="removeEvent(event.id)" class="absolute top-4 right-4 text-slate-200 hover:text-red-400 transition-colors">
                             <i class="fa-solid fa-trash text-[10px]"></i>
                         </button>
+                        
                         <h3 class="text-sm font-bold text-slate-600 mb-1">
                             {{ lang === 'en' && event.translation ? event.translation.location : event.location }}
                         </h3>
-                        <p class="text-[10px] text-slate-400 leading-relaxed">
+                        <p class="text-[10px] text-slate-400 leading-relaxed mb-4">
                             {{ lang === 'en' && event.translation ? event.translation.desc : event.desc }}
                         </p>
+
+                        <!-- Google 地圖按鈕 (美化版) -->
+                        <div v-if="event.mapUrl" class="flex">
+                            <button @click.stop="openMap(event.mapUrl)" class="map-btn flex items-center gap-2 px-3 py-1.5 rounded-full shadow-sm text-[10px] font-bold text-slate-600 hover:bg-slate-50">
+                                <i class="fa-solid fa-location-dot text-red-400"></i>
+                                <span>{{ t('查看地圖') }}</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
-                <button @click="showModal = true; editingId = null; form = {time: '', location: '', desc: ''}" 
+                <button @click="showModal = true; editingId = null; form = {time: '', location: '', desc: '', mapUrl: ''}" 
                     class="w-full ml-14 py-4 border-2 border-dashed border-slate-200 rounded-[1.5rem] text-slate-300 text-[10px] font-bold uppercase hover:text-soft-pink bg-white/40 transition-all" style="width: calc(100% - 56px)">
                     + {{ t('Add New Event') }}
                 </button>
@@ -180,7 +204,7 @@
             <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" @click="dayEditing = null"></div>
             <div class="relative bg-white w-full max-w-xs rounded-[2rem] p-6 shadow-2xl space-y-4">
                 <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">修改天數名稱</p>
-                <input v-model="dayEditValue" class="w-full border-b-2 border-pink-100 py-3 text-center text-sm font-bold focus:outline-none focus:border-pink-300" placeholder="例如: Day 1 或 抵達">
+                <input v-model="dayEditValue" @keyup.enter="saveDayLabel" class="w-full border-b-2 border-pink-100 py-3 text-center text-sm font-bold focus:outline-none focus:border-pink-300" placeholder="例如: Day 1 或 抵達">
                 <div class="flex gap-2">
                     <button @click="dayEditing = null" class="flex-1 py-3 text-[10px] font-bold text-slate-400 uppercase">取消</button>
                     <button @click="saveDayLabel" class="flex-1 py-3 bg-slate-800 text-white rounded-xl text-[10px] font-bold uppercase">儲存</button>
@@ -198,11 +222,26 @@
                         {{ editingId ? t('Edit Entry') : t('New Entry') }} — {{ currentDayLabel }}
                     </p>
                 </div>
-                <input v-model="form.time" :placeholder="t('時間 (09:00)')" class="w-full border-b py-2 text-xs focus:outline-none">
-                <input v-model="form.location" :placeholder="t('地點名稱')" class="w-full border-b py-2 text-xs focus:outline-none">
-                <textarea v-model="form.desc" :placeholder="t('備注...')" class="w-full border-b py-2 text-xs focus:outline-none resize-none"></textarea>
+                <div class="space-y-4 max-h-[60vh] overflow-y-auto pr-2 no-scrollbar">
+                    <div>
+                        <label class="text-[9px] font-bold text-slate-400 uppercase ml-1">{{ t('時間') }}</label>
+                        <input v-model="form.time" :placeholder="t('09:00')" class="w-full border-b py-2 text-xs focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="text-[9px] font-bold text-slate-400 uppercase ml-1">{{ t('地點') }}</label>
+                        <input v-model="form.location" :placeholder="t('地點名稱')" class="w-full border-b py-2 text-xs focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="text-[9px] font-bold text-slate-400 uppercase ml-1">{{ t('地圖資訊') }}</label>
+                        <input v-model="form.mapUrl" :placeholder="t('網址或關鍵字')" class="w-full border-b py-2 text-xs focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="text-[9px] font-bold text-slate-400 uppercase ml-1">{{ t('備註') }}</label>
+                        <textarea v-model="form.desc" :placeholder="t('想記下的東西...')" class="w-full border-b py-2 text-xs focus:outline-none resize-none h-20"></textarea>
+                    </div>
+                </div>
                 <button @click="saveEvent" :disabled="!form.location"
-                    class="w-full py-4 bg-slate-800 text-white rounded-2xl text-[10px] font-bold uppercase disabled:opacity-30">
+                    class="w-full py-4 bg-slate-800 text-white rounded-2xl text-[10px] font-bold uppercase disabled:opacity-30 mt-4 shadow-lg active:scale-95 transition-transform">
                     {{ t('Confirm') }}
                 </button>
             </div>
@@ -247,7 +286,6 @@ createApp({
         const saving = ref(false);
         const translating = ref(false);
         
-        // 介面配置
         const config = ref({
             title: '東京旅遊行程表',
             subtitle: 'Spring 2026',
@@ -266,10 +304,11 @@ createApp({
         const editingId = ref(null);
         const dayEditing = ref(null);
         const dayEditValue = ref('');
+
         const weather = ref(null);
         const currency = ref({ jpy: 1000, twd: 211, aud: 10.12 });
         const events = ref([]);
-        const form = ref({ time: '', location: '', desc: '' });
+        const form = ref({ time: '', location: '', desc: '', mapUrl: '' });
         
         let dbRef = null;
         let dbListener = null;
@@ -284,11 +323,17 @@ createApp({
             'New Entry': { en: 'New Entry' },
             'Edit Entry': { en: 'Edit Entry' },
             'Day': { en: 'Day' },
-            '時間 (09:00)': { en: 'Time (09:00)' },
-            '地點名稱': { en: 'Location' },
-            '備注...': { en: 'Notes...' },
+            '09:00': { en: '09:00' },
+            '時間': { en: 'Time' },
+            '地點': { en: 'Location' },
+            '地圖資訊': { en: 'Map Link / Info' },
+            '備註': { en: 'Notes' },
+            '地點名稱': { en: 'Location Name' },
+            '網址或關鍵字': { en: 'URL or keyword' },
+            '想記下的東西...': { en: 'Anything to note...' },
             'Confirm': { en: 'Confirm' },
-            '下雨機率': { en: 'Rain Prob' }
+            '下雨機率': { en: 'Rain Prob' },
+            '查看地圖': { en: 'View Map' }
         };
 
         const t = (text) => {
@@ -297,6 +342,7 @@ createApp({
         };
 
         const roomDisplay = computed(() => roomInput.value.slice(0, 2) + '***');
+        
         const currentDayLabel = computed(() => {
             const day = config.value.days.find(d => d.id === currentDayId.value);
             return day ? day.label : '';
@@ -335,6 +381,16 @@ createApp({
                 dayEditing.value = null;
                 updateConfig();
             }
+        };
+
+        const openMap = (url) => {
+            if (!url) return;
+            let finalUrl = url;
+            // 如果不是以 http 開頭，視為關鍵字搜尋
+            if (!url.startsWith('http')) {
+                finalUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(url)}`;
+            }
+            window.open(finalUrl, '_blank');
         };
 
         const fetchWeather = async () => {
@@ -436,7 +492,8 @@ createApp({
                 dayId: currentDayId.value,
                 time: form.value.time || '待定',
                 location: form.value.location,
-                desc: form.value.desc || '-'
+                desc: form.value.desc || '-',
+                mapUrl: form.value.mapUrl || ''
             };
 
             if (lang.value === 'en') {
@@ -456,7 +513,7 @@ createApp({
             await saveToCloud();
             showModal.value = false;
             editingId.value = null;
-            form.value = { time: '', location: '', desc: '' };
+            form.value = { time: '', location: '', desc: '', mapUrl: '' };
         };
 
         const openEdit = (event) => {
@@ -464,7 +521,8 @@ createApp({
             form.value = { 
                 time: event.time === '待定' ? '' : event.time, 
                 location: event.location, 
-                desc: event.desc === '-' ? '' : event.desc 
+                desc: event.desc === '-' ? '' : event.desc,
+                mapUrl: event.mapUrl || ''
             };
             showModal.value = true;
         };
@@ -505,7 +563,7 @@ createApp({
             dayEditing, dayEditValue,
             currency, form, currentEvents, weather, currentDayLabel,
             joinRoom, leaveRoom, saveEvent, openEdit, removeEvent, convert, toggleLang, t,
-            updateConfig, addDay, removeDay, editDayLabel, saveDayLabel
+            updateConfig, addDay, removeDay, editDayLabel, saveDayLabel, openMap
         };
     }
 }).mount('#app');
