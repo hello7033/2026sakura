@@ -18,7 +18,6 @@
         .text-soft-pink { color: #f2bac5; }
         .bg-soft-pink { background-color: #f2bac5; }
         
-        /* 櫻花飄落動畫 */
         @keyframes fall {
             0% { transform: translateY(-10vh) translateX(0) rotate(0deg); opacity: 0; }
             10% { opacity: 1; }
@@ -39,7 +38,9 @@
         .sync-dot.on { background: #86efac; box-shadow: 0 0 6px #86efac; }
         .sync-dot.off { background: #fca5a5; }
 
-        input, textarea { font-family: inherit; }
+        input, textarea { font-family: inherit; background: transparent; }
+        .editable-input { border: none; padding: 0; width: 100%; color: inherit; font-size: inherit; font-weight: inherit; font-style: inherit; font-family: inherit; }
+        .editable-input:focus { outline: none; background: rgba(242, 186, 197, 0.1); border-radius: 4px; }
     </style>
 </head>
 <body class="pb-12">
@@ -71,7 +72,6 @@
 
     <!-- 主畫面 -->
     <div v-if="roomJoined">
-        <!-- 儲存/翻譯 狀態 -->
         <div class="fixed top-4 left-1/2 -translate-x-1/2 z-[110]">
             <div v-if="saving || translating" class="bg-white/95 px-5 py-2 rounded-full shadow-lg text-[10px] text-soft-pink font-bold tracking-widest border border-pink-100 flex items-center gap-2">
                 <i class="fa-solid fa-sync animate-spin"></i> 
@@ -81,10 +81,12 @@
 
         <header class="sakura-header p-10 rounded-b-[3rem] shadow-sm relative overflow-hidden">
             <div class="flex justify-between items-start">
-                <div class="space-y-2">
-                    <p class="text-[10px] tracking-[0.4em] font-bold text-soft-pink uppercase">Tokyo Journey</p>
-                    <h1 class="text-3xl font-light text-slate-700">{{ t('Spring') }} <span class="italic font-serif">2026</span></h1>
-                    <!-- 天氣顯示 -->
+                <div class="space-y-2 flex-1 mr-4">
+                    <input v-model="config.title" @change="updateConfig" class="editable-input text-[10px] tracking-[0.4em] font-bold text-soft-pink uppercase" placeholder="點擊編輯標題">
+                    <div class="flex items-baseline gap-2">
+                        <input v-model="config.subtitle" @change="updateConfig" class="editable-input text-3xl font-light text-slate-700" placeholder="Spring 2026">
+                    </div>
+                    
                     <div v-if="weather" class="flex flex-col gap-1 text-[10px] text-slate-400 font-bold mt-1">
                         <div class="flex items-center gap-2">
                             <i class="fa-solid fa-cloud-sun"></i>
@@ -96,14 +98,13 @@
                         </div>
                     </div>
                 </div>
-                <button @click="toggleLang" class="text-[10px] font-bold text-slate-400 border-b border-slate-200 uppercase px-2 py-1">
+                <button @click="toggleLang" class="text-[10px] font-bold text-slate-400 border-b border-slate-200 uppercase px-2 py-1 shrink-0">
                     {{ lang === 'zh' ? 'English' : '中文' }}
                 </button>
             </div>
         </header>
 
         <main class="px-6 -mt-6 space-y-6">
-            <!-- 同步狀態 -->
             <section class="glass-panel p-4 rounded-[1.5rem] shadow-sm flex items-center justify-between">
                 <div class="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                     <span class="sync-dot" :class="synced ? 'on' : 'off'"></span>
@@ -117,7 +118,6 @@
                 </div>
             </section>
 
-            <!-- 匯率轉換 -->
             <section class="glass-panel p-6 rounded-[2rem] shadow-lg">
                 <div class="grid grid-cols-3 gap-3">
                     <div v-for="key in ['jpy', 'twd', 'aud']" :key="key">
@@ -128,13 +128,26 @@
                 </div>
             </section>
 
-            <!-- 天數切換 -->
-            <nav class="flex justify-between items-center px-4 py-2 bg-white/50 backdrop-blur-sm rounded-full shadow-sm">
-                <button v-for="d in 5" :key="d" @click="currentDay = d"
-                    :class="['w-10 h-10 rounded-full text-[11px] transition-all', currentDay === d ? 'bg-soft-pink text-white font-bold shadow-md' : 'text-slate-300']">
-                    {{ d }}
-                </button>
-            </nav>
+            <!-- 天數切換與編輯 -->
+            <div class="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
+                <div class="flex bg-white/50 backdrop-blur-sm rounded-full shadow-sm p-1.5 gap-1 shrink-0">
+                    <div v-for="(day, index) in config.days" :key="day.id" class="relative">
+                        <button @click="currentDayId = day.id" @dblclick="editDayLabel(day)"
+                            :class="['px-4 h-10 rounded-full text-[11px] transition-all min-w-[40px] whitespace-nowrap', currentDayId === day.id ? 'bg-soft-pink text-white font-bold shadow-md' : 'text-slate-300 hover:text-slate-500']">
+                            {{ day.label }}
+                        </button>
+                    </div>
+                </div>
+                <!-- 新增/刪除天數按鈕 -->
+                <div class="flex gap-1 shrink-0">
+                    <button @click="addDay" class="w-8 h-8 rounded-full bg-white/50 text-slate-400 flex items-center justify-center text-[10px] hover:bg-white hover:text-soft-pink transition-colors shadow-sm">
+                        <i class="fa-solid fa-plus"></i>
+                    </button>
+                    <button @click="removeDay" class="w-8 h-8 rounded-full bg-white/50 text-slate-400 flex items-center justify-center text-[10px] hover:bg-white hover:text-red-300 transition-colors shadow-sm" :disabled="config.days.length <= 1">
+                        <i class="fa-solid fa-minus"></i>
+                    </button>
+                </div>
+            </div>
 
             <!-- 行程清單 -->
             <div class="space-y-4">
@@ -162,14 +175,27 @@
             </div>
         </main>
 
-        <!-- 新增/編輯行程彈窗 -->
+        <!-- 天數標籤編輯彈窗 -->
+        <div v-if="dayEditing" class="fixed inset-0 z-[120] flex items-center justify-center p-6">
+            <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" @click="dayEditing = null"></div>
+            <div class="relative bg-white w-full max-w-xs rounded-[2rem] p-6 shadow-2xl space-y-4">
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">修改天數名稱</p>
+                <input v-model="dayEditValue" class="w-full border-b-2 border-pink-100 py-3 text-center text-sm font-bold focus:outline-none focus:border-pink-300" placeholder="例如: Day 1 或 抵達">
+                <div class="flex gap-2">
+                    <button @click="dayEditing = null" class="flex-1 py-3 text-[10px] font-bold text-slate-400 uppercase">取消</button>
+                    <button @click="saveDayLabel" class="flex-1 py-3 bg-slate-800 text-white rounded-xl text-[10px] font-bold uppercase">儲存</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 行程編輯彈窗 -->
         <div v-if="showModal" class="fixed inset-0 z-[100] flex items-center justify-center p-6">
             <div class="absolute inset-0 bg-slate-900/20 backdrop-blur-sm" @click="showModal = false"></div>
             <div class="relative bg-white w-full max-w-xs rounded-[2.5rem] p-8 shadow-2xl space-y-4">
                 <div class="text-center mb-2">
                     <span class="text-2xl">{{ editingId ? '✍️' : '🗓️' }}</span>
                     <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2">
-                        {{ editingId ? t('Edit Entry') : t('New Entry') }} — {{ t('Day') }} {{ currentDay }}
+                        {{ editingId ? t('Edit Entry') : t('New Entry') }} — {{ currentDayLabel }}
                     </p>
                 </div>
                 <input v-model="form.time" :placeholder="t('時間 (09:00)')" class="w-full border-b py-2 text-xs focus:outline-none">
@@ -185,10 +211,10 @@
 </div>
 
 <script>
-const { createApp, ref, computed, onMounted } = Vue;
+const { createApp, ref, computed, onMounted, watch } = Vue;
 
 const firebaseConfig = {
-    apiKey: "", // API Key 會由環境提供
+    apiKey: "", 
     authDomain: "sakura-db2eb.firebaseapp.com",
     databaseURL: "https://sakura-db2eb-default-rtdb.asia-southeast1.firebasedatabase.app",
     projectId: "sakura-db2eb",
@@ -200,7 +226,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-const apiKey = ""; // Gemini API Key 會由環境提供
+const apiKey = ""; 
 
 function hashRoom(str) {
     let hash = 0;
@@ -220,14 +246,31 @@ createApp({
         const synced = ref(false);
         const saving = ref(false);
         const translating = ref(false);
-        const currentDay = ref(1);
-        const lang = ref('zh'); // 'zh' or 'en'
+        
+        // 介面配置
+        const config = ref({
+            title: '東京旅遊行程表',
+            subtitle: 'Spring 2026',
+            days: [
+                { id: 'd1', label: '1' },
+                { id: 'd2', label: '2' },
+                { id: 'd3', label: '3' },
+                { id: 'd4', label: '4' },
+                { id: 'd5', label: '5' }
+            ]
+        });
+
+        const currentDayId = ref('d1');
+        const lang = ref('zh');
         const showModal = ref(false);
         const editingId = ref(null);
+        const dayEditing = ref(null);
+        const dayEditValue = ref('');
         const weather = ref(null);
         const currency = ref({ jpy: 1000, twd: 211, aud: 10.12 });
         const events = ref([]);
         const form = ref({ time: '', location: '', desc: '' });
+        
         let dbRef = null;
         let dbListener = null;
 
@@ -254,15 +297,48 @@ createApp({
         };
 
         const roomDisplay = computed(() => roomInput.value.slice(0, 2) + '***');
+        const currentDayLabel = computed(() => {
+            const day = config.value.days.find(d => d.id === currentDayId.value);
+            return day ? day.label : '';
+        });
 
         const currentEvents = computed(() =>
-            events.value.filter(e => e.day === currentDay.value)
+            events.value.filter(e => e.dayId === currentDayId.value)
                 .sort((a, b) => (a.time || '').localeCompare(b.time || ''))
         );
 
+        const updateConfig = () => saveToCloud();
+
+        const addDay = () => {
+            const nextNum = config.value.days.length + 1;
+            config.value.days.push({ id: 'd' + Date.now(), label: String(nextNum) });
+            updateConfig();
+        };
+
+        const removeDay = () => {
+            if (config.value.days.length <= 1) return;
+            const removed = config.value.days.pop();
+            if (currentDayId.value === removed.id) {
+                currentDayId.value = config.value.days[config.value.days.length - 1].id;
+            }
+            updateConfig();
+        };
+
+        const editDayLabel = (day) => {
+            dayEditing.value = day;
+            dayEditValue.value = day.label;
+        };
+
+        const saveDayLabel = () => {
+            if (dayEditing.value) {
+                dayEditing.value.label = dayEditValue.value;
+                dayEditing.value = null;
+                updateConfig();
+            }
+        };
+
         const fetchWeather = async () => {
             try {
-                // 獲取當前天氣與降雨機率 (Open-Meteo)
                 const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=35.6895&longitude=139.6917&current_weather=true&daily=precipitation_probability_max&timezone=Asia%2FTokyo');
                 const data = await res.json();
                 weather.value = {
@@ -276,7 +352,7 @@ createApp({
         const translateContent = async (text) => {
             if (!text || text === '-' || text === '待定') return text;
             try {
-                const prompt = `Translate the following travel destination or note to English. Return ONLY the translated text without quotes or extra explanation: "${text}"`;
+                const prompt = `Translate to English: "${text}". Return only the translation.`;
                 const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -284,16 +360,13 @@ createApp({
                 });
                 const result = await response.json();
                 return result.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || text;
-            } catch (e) {
-                return text;
-            }
+            } catch (e) { return text; }
         };
 
         const toggleLang = async () => {
             lang.value = lang.value === 'zh' ? 'en' : 'zh';
             if (lang.value === 'en') {
                 translating.value = true;
-                // 檢查是否有尚未翻譯的行程
                 let changed = false;
                 const newEvents = await Promise.all(events.value.map(async e => {
                     if (!e.translation) {
@@ -310,7 +383,7 @@ createApp({
                 }));
                 if (changed) {
                     events.value = newEvents;
-                    await saveToCloud(newEvents, currency.value);
+                    await saveToCloud();
                 }
                 translating.value = false;
             }
@@ -331,6 +404,7 @@ createApp({
                 if (data) {
                     events.value = data.events ? Object.values(data.events) : [];
                     if (data.currency) currency.value = data.currency;
+                    if (data.config) config.value = data.config;
                 }
                 synced.value = true;
             });
@@ -343,26 +417,28 @@ createApp({
             synced.value = false;
         };
 
-        const saveToCloud = async (newEvents, newCurrency) => {
+        const saveToCloud = async () => {
             if (!dbRef) return;
             saving.value = true;
             const eventsObj = {};
-            newEvents.forEach(e => { eventsObj[e.id] = e; });
-            await dbRef.set({ events: eventsObj, currency: newCurrency });
+            events.value.forEach(e => { eventsObj[e.id] = e; });
+            await dbRef.set({ 
+                events: eventsObj, 
+                currency: currency.value, 
+                config: config.value 
+            });
             setTimeout(() => saving.value = false, 400);
         };
 
         const saveEvent = async () => {
-            let newEvents = [...events.value];
             const eventData = {
                 id: editingId.value || Date.now().toString(),
-                day: currentDay.value,
+                dayId: currentDayId.value,
                 time: form.value.time || '待定',
                 location: form.value.location,
                 desc: form.value.desc || '-'
             };
 
-            // 如果是在英文模式下操作，或需要預先翻譯
             if (lang.value === 'en') {
                 eventData.translation = {
                     location: await translateContent(eventData.location),
@@ -371,13 +447,13 @@ createApp({
             }
 
             if (editingId.value) {
-                const idx = newEvents.findIndex(e => e.id === editingId.value);
-                newEvents[idx] = eventData;
+                const idx = events.value.findIndex(e => e.id === editingId.value);
+                events.value[idx] = eventData;
             } else {
-                newEvents.push(eventData);
+                events.value.push(eventData);
             }
 
-            await saveToCloud(newEvents, currency.value);
+            await saveToCloud();
             showModal.value = false;
             editingId.value = null;
             form.value = { time: '', location: '', desc: '' };
@@ -394,8 +470,8 @@ createApp({
         };
 
         const removeEvent = (id) => {
-            const newEvents = events.value.filter(e => e.id !== id);
-            saveToCloud(newEvents, currency.value);
+            events.value = events.value.filter(e => e.id !== id);
+            saveToCloud();
         };
 
         const convert = (src) => {
@@ -405,19 +481,17 @@ createApp({
             else if (src === 'twd') { c.jpy = Math.round(c.twd / JPY_TWD); c.aud = +(c.twd / AUD_TWD).toFixed(2); }
             else if (src === 'aud') { c.twd = Math.round(c.aud * AUD_TWD); c.jpy = Math.round(c.twd / JPY_TWD); }
             currency.value = c;
-            saveToCloud(events.value, c);
+            saveToCloud();
         };
 
         onMounted(() => {
-            // 全篇幅櫻花特效
             for (let i = 0; i < 20; i++) {
                 const p = document.createElement('div');
                 p.className = 'petal';
                 p.style.left = Math.random() * 100 + 'vw';
                 p.style.top = '-5vh';
                 const size = (Math.random() * 8 + 6) + 'px';
-                p.style.width = size;
-                p.style.height = size;
+                p.style.width = p.style.height = size;
                 p.style.animationDuration = (Math.random() * 8 + 7) + 's';
                 p.style.animationDelay = (Math.random() * 10) + 's';
                 p.style.opacity = Math.random() * 0.6 + 0.4;
@@ -427,9 +501,11 @@ createApp({
 
         return {
             roomInput, roomJoined, roomError, roomDisplay,
-            synced, saving, translating, currentDay, lang, showModal, editingId,
-            currency, form, currentEvents, weather,
-            joinRoom, leaveRoom, saveEvent, openEdit, removeEvent, convert, toggleLang, t
+            synced, saving, translating, currentDayId, config, lang, showModal, editingId,
+            dayEditing, dayEditValue,
+            currency, form, currentEvents, weather, currentDayLabel,
+            joinRoom, leaveRoom, saveEvent, openEdit, removeEvent, convert, toggleLang, t,
+            updateConfig, addDay, removeDay, editDayLabel, saveDayLabel
         };
     }
 }).mount('#app');
