@@ -90,6 +90,12 @@
         /* 拖曳排序樣式 */
         .sortable-ghost { opacity: 0.3; background: #f2bac5 !important; border-radius: 2.5rem; }
         .sortable-drag { opacity: 0.9; transform: rotate(2deg); }
+
+        /* 備註分段樣式 */
+        .desc-text {
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
     </style>
 </head>
 <body class="pb-12">
@@ -201,7 +207,8 @@
                         <button @click.stop="removeEvent(event.id)" class="absolute top-5 right-6 text-slate-200 hover:text-red-400"><i class="fa-solid fa-trash text-xs"></i></button>
                         
                         <h3 class="text-base font-bold text-slate-600 mb-2">{{ event.location }}</h3>
-                        <p class="text-[13px] text-slate-400 leading-relaxed mb-5">{{ event.desc }}</p>
+                        <!-- 修改處：使用 desc-text 類別並改為 div 以支持換行分段 -->
+                        <div class="desc-text text-[13px] text-slate-400 leading-relaxed mb-5">{{ event.desc }}</div>
                         
                         <!-- 按鈕區域 -->
                         <div class="flex flex-wrap gap-2">
@@ -269,7 +276,7 @@
                     </div>
                     <div>
                         <label class="text-[10px] font-bold text-slate-400 uppercase ml-1">{{ t('備註') }}</label>
-                        <textarea v-model="form.desc" placeholder="想記下的東西..." class="w-full border-b py-2 text-sm focus:outline-none resize-none h-20"></textarea>
+                        <textarea v-model="form.desc" placeholder="想記下的東西..." class="w-full border-b py-2 text-sm focus:outline-none resize-none h-40"></textarea>
                     </div>
                 </div>
                 <button @click="saveEvent" :disabled="!form.location"
